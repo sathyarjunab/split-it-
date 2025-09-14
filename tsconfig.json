@@ -1,0 +1,21 @@
+{
+  "compilerOptions": {
+    "lib": ["es5", "es6", "ESNext"],
+    "strict": true,
+    "target": "es6",
+    "module": "NodeNext",
+    "outDir": "./dist",
+    "baseUrl": ".",
+    "moduleResolution": "NodeNext",
+    "emitDecoratorMetadata": true,
+    "experimentalDecorators": true,
+    "sourceMap": true,
+    "esModuleInterop": true,
+    "resolvePackageJsonImports": true,
+    "skipLibCheck": true,
+    "typeRoots": ["node_modules/@types", "./src/types/**"]
+  },
+  "exclude": ["node_modules", "tests", "dist"],
+  "include": ["src/**/*"],
+  "files": ["./src/types/global.d.ts"]
+}
