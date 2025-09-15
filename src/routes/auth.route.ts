@@ -1,12 +1,13 @@
 import bcrypt from "bcrypt";
 import { Router } from "express";
 import jwt from "jsonwebtoken";
+import { User } from "./../model/user";
 import {
   userLoginValidation,
   userSignupValidator,
 } from "./../util/users_split_validator";
-import { User } from "./../model/user";
-import { regex } from "zod";
+import { ZodError } from "zod";
+import { SequelizeScopeError } from "@sequelize/core";
 
 const router = Router();
 
@@ -38,29 +39,37 @@ router.post("/signup", async (req, res) => {
 });
 
 router.post("/login", async (req, res) => {
-  const userLoginBody = userLoginValidation.parse(req.body);
+  try {
+    const userLoginBody = userLoginValidation.parse(req.body);
 
-  const userExists = await User.findOne({
-    where: { email: userLoginBody.email },
-  });
-  if (userExists) {
-    bcrypt.compare(
-      userLoginBody.password,
-      userExists.password,
-      (err, result) => {
-        if (err || !result) {
-          res
-            .status(401)
-            .send({ message: "please provide with the valid password" });
-          return;
+    const userExists = await User.findOne({
+      where: { email: userLoginBody.email },
+    });
+    if (userExists) {
+      bcrypt.compare(
+        userLoginBody.password,
+        userExists.password,
+        (err, result) => {
+          if (err || !result) {
+            res
+              .status(401)
+              .send({ message: "please provide with the valid password" });
+            return;
+          }
+          const { password, ...withOutPassword } = userExists.toJSON();
+          const jwt_token = jwt.sign(withOutPassword, process.env.SECRATE_KEY!);
+          res.status(200).send({ jwt: jwt_token });
         }
-        const { password, ...withOutPassword } = userExists.toJSON();
-        const jwt_token = jwt.sign(withOutPassword, process.env.SECRATE_KEY!);
-        res.status(200).send({ jwt: jwt_token });
-      }
-    );
-  } else {
-    res.status(401).send({ message: "user not found" });
+      );
+    } else {
+      res.status(401).send({ message: "user not found" });
+    }
+  } catch (Err) {
+    if (Err instanceof ZodError) {
+      res.status(401).send(Err.message);
+    } else if (Err instanceof SequelizeScopeError) {
+      res.status(500).send(Err.message);
+    }
   }
 });
 

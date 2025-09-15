@@ -1,13 +1,10 @@
-import Sequelize, { Op } from "@sequelize/core";
-import { Request, Router, Response } from "express";
-import z from "zod";
+import { Op } from "@sequelize/core";
+import { Request, Response, Router } from "express";
+import z, { ZodError } from "zod";
 import { User } from "../model/user";
 import { Friends, status } from "./../model/Friends";
 import { sequelize } from "./../util/data_base";
 import { resolveRequest } from "./../util/friend_req";
-import ca from "zod/v4/locales/ca.js";
-import { error } from "console";
-import route from "./debug.route";
 
 const router = Router();
 
@@ -100,13 +97,13 @@ router.get("/list_friend_req", async (req: Request, res: Response) => {
   res.status(200).send(requestorsWithoutPassword);
 });
 
-router.post(
-  "/api/user/accept_or_reject",
-  async (req: Request, res: Response) => {
+router.post("/accept_or_reject", async (req: Request, res: Response) => {
+  try {
     const reqBody = z
       .object({
-        userIds: z.string().array(),
-        action: z.enum(["accept", "reject"]),
+        userIds: z.int().positive().array(),
+        //true means req accepted false means rejected
+        action: z.boolean(),
       })
       .parse(req.body);
 
@@ -117,7 +114,78 @@ router.post(
         status: status.PENDING,
       },
     });
+
+    if (
+      friendRequests.length == 0 ||
+      friendRequests.length != reqBody.userIds.length
+    )
+      return res
+        .status(400)
+        .send(
+          "you are giving the wrong ids only give the ids you see in the user object so that you can accept or reject the requests"
+        );
+
+    if (reqBody.action) {
+      await sequelize.transaction(async () => {
+        for (const request of friendRequests) {
+          request.status = status.ACCEPTED;
+          await request.save();
+        }
+      });
+      res
+        .status(200)
+        .send(
+          `accepted you have a new ${
+            friendRequests.length > 1 ? "friends" : "friend"
+          }`
+        );
+    } else {
+      await sequelize.transaction(async () => {
+        for (const request of friendRequests) {
+          request.status = status.DECLINED;
+          await request.save();
+        }
+      });
+      res.status(200).send("rejected");
+    }
+  } catch (err) {
+    if (err instanceof ZodError) {
+      res.status(401).send(err.message);
+    }
   }
-);
+});
+
+router.post("/list_friends", async (req: Request, res: Response) => {
+  const friends = await Friends.findAll({
+    where: {
+      [Op.and]: [
+        {
+          [Op.or]: {
+            requesterId: req.user?.id,
+            addresseeId: req.user?.id,
+          },
+        },
+        {
+          status: status.ACCEPTED,
+        },
+      ],
+    },
+  });
+
+  const friendsId = friends.map((f) => {
+    if (f.addresseeId == req.user?.id) return f.requesterId;
+    return f.addresseeId;
+  });
+
+  const users = await User.findAll({
+    where: {
+      id: {
+        [Op.in]: friendsId,
+      },
+    },
+  });
+
+  res.status(200).send(users);
+});
 
 export default router;

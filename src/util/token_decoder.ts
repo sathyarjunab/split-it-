@@ -1,6 +1,6 @@
+import { NextFunction, Request, Response } from "express";
 import jwt, { JwtPayload } from "jsonwebtoken";
 import { User } from "./../model/user";
-import { NextFunction, Request, Response } from "express";
 
 export const tokenDecoder = async (
   req: Request,

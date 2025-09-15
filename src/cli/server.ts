@@ -5,7 +5,11 @@ import { Command } from "commander";
 import inquirer from "inquirer";
 import keytar from "keytar";
 import api from "../../axios_config";
-import { defaultChecker, tokenSelector } from "../cli_util/token_selector";
+import {
+  defaultChecker,
+  getIncrement,
+  tokenSelector,
+} from "../cli_util/token_selector";
 import { User } from "src/model/user";
 
 export interface tokenInfo {
@@ -90,7 +94,7 @@ export const serverCommand = (program: Command) => {
           JSON.stringify({
             token: jwt_token.data.jwt,
             default: await defaultChecker(),
-            id: (await keytar.findCredentials("SPLIT-IT")).length + 1,
+            id: await getIncrement(user.email),
           })
         );
         console.log("hi there", user.email);
@@ -210,73 +214,71 @@ export const serverCommand = (program: Command) => {
     .action(async (option) => {
       try {
         const token = (await tokenSelector(option.user))?.token;
-        const needToAccept = async () => {
-          const friendRequests = (
-            await api.get("/api/user/list_friend_req", {
+        const friendRequests = (
+          await api.get("/api/user/list_friend_req", {
+            headers: {
+              Authorization: token,
+            },
+          })
+        ).data as Omit<User, "password">[];
+        console.log("friendRequests", friendRequests);
+
+        if (friendRequests.length > 0) {
+          const options = await inquirer.prompt([
+            {
+              type: "input",
+              name: "accept/reject",
+              message:
+                "accept or reject option or enter exit to exit this loop",
+            },
+            {
+              type: "input",
+              name: "userIds",
+              message: "user ids to accept or reject separated by comma",
+              when: (answers) =>
+                answers["accept/reject"] == "accept" ||
+                answers["accept/reject"] == "reject",
+            },
+          ]);
+
+          if (
+            options["accept/reject"] != "accept" &&
+            options["accept/reject"] != "reject"
+          ) {
+            console.log("exited");
+            process.exit(0);
+          }
+
+          const isValid = /^(\d+\s*)(,\s*\d+\s*)*$/.test(options.userIds);
+
+          if (!isValid) {
+            console.log("invalid input");
+            process.exit(1);
+          }
+
+          const userIds: number[] = options.userIds
+            .split(",")
+            .map((id: string) => Number(id));
+
+          if (options["accept/reject"] == "exit") {
+            process.exit(0);
+          }
+
+          const resp = await api.post(
+            "/api/user/accept_or_reject",
+            {
+              userIds: userIds,
+              action: options["accept/reject"] == "accept" ? true : false,
+            },
+            {
               headers: {
                 Authorization: token,
               },
-            })
-          ).data as Omit<User, "password">[];
-          console.log("friendRequests", friendRequests);
-
-          if (friendRequests.length > 0) {
-            const options = await inquirer.prompt([
-              {
-                type: "input",
-                name: "accept/reject",
-                message:
-                  "accept or reject option or enter exit to exit this loop",
-              },
-              {
-                type: "input",
-                name: "userIds",
-                message: "user ids to accept or reject sepreated by comma",
-                when: (answers) =>
-                  answers["accept/reject"] == "accept" ||
-                  answers["accept/reject"] == "reject",
-              },
-            ]);
-
-            if (
-              options["accept/reject"] != "accept" &&
-              options["accept/reject"] != "reject"
-            ) {
-              console.log("exited");
-              process.exit(0);
             }
-
-            const isValid = /^(\d+\s*)(,\s*\d+\s*)*$/.test(options.userIds);
-
-            if (!isValid) {
-              console.log("invalid input");
-              process.exit(1);
-            }
-
-            const userIds: number[] = options.userIds
-              .split(",")
-              .map((id: string) => Number(id));
-
-            if (options["accept/reject"] == "exit") {
-              process.exit(0);
-            }
-
-            await api.post(
-              "/api/user/accept_or_reject",
-              {
-                ids: userIds,
-                accept: options["accept/reject"] == "accept" ? true : false,
-              },
-              {
-                headers: {
-                  Authorization: token,
-                },
-              }
-            );
-          }
-        };
-
-        await needToAccept();
+          );
+          console.log(resp.status);
+          console.log(resp.data);
+        }
 
         process.exit(0);
       } catch (err) {
@@ -292,4 +294,9 @@ export const serverCommand = (program: Command) => {
         process.exit(1);
       }
     });
+  server
+    .command("list_friends")
+    .description("list all the friends of the user")
+    .option("-u --user <id>", "user id")
+    .action(async (option) => {});
 };

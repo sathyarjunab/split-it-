@@ -38,5 +38,16 @@ export const tokenSelector = async (
 
 export const defaultChecker = async () => {
   const token = await keytar.findCredentials("SPLIT-IT");
-  return token.length > 0 ? false : true;
+  return token.filter((t) => JSON.parse(t.password).default).length == 0;
+};
+
+export const getIncrement = async (email: string) => {
+  const tokens = await keytar.findCredentials("SPLIT-IT");
+  // if the token exist for the account already or not
+  const existingToken = tokens.find((t) => t.account == email);
+  if (existingToken) {
+    return JSON.parse(existingToken.password).id;
+  } else {
+    return tokens.length + 1;
+  }
 };

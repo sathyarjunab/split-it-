@@ -22,7 +22,6 @@ router.get("/split_me", (req, res) => {
             moneyToCome: 0,
           });
         } else {
-          // console.log(split.userId, borrower.userId);
           const user = userSplit.get(borrower.userId);
           userSplit.set(borrower.userId, {
             moneyToGo: (user?.moneyToGo ?? 0) + borrower.amount,
@@ -57,8 +56,6 @@ router.get("/split_me", (req, res) => {
     }
 
     const finalTransaction = spliter(reciver, payer);
-
-    console.log(finalTransaction);
 
     res.status(200).send(finalTransaction);
   } catch (er) {
