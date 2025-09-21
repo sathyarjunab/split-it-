@@ -12,9 +12,11 @@ import {
   BelongsToMany,
   NotNull,
   PrimaryKey,
+  Table,
   Unique,
 } from "@sequelize/core/decorators-legacy";
 import { SqliteDialect } from "@sequelize/sqlite3";
+import { table } from "console";
 import {
   BelongsToManyGetAssociationsMixin,
   BelongsToManyRemoveAssociationsMixin,
@@ -22,8 +24,18 @@ import {
   NonAttribute,
 } from "sequelize";
 
-const sequelize = new Sequelize({ dialect: SqliteDialect });
-
+@Table({
+  tableName: "Users",
+  freezeTableName: true,
+  defaultScope: {
+    attributes: { exclude: ["password"] },
+  },
+  scopes: {
+    withPassword: {
+      attributes: { include: ["password"] },
+    },
+  },
+})
 export class User extends Model<
   InferAttributes<User>,
   InferCreationAttributes<User>

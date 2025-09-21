@@ -41,7 +41,7 @@ export const defaultChecker = async () => {
   return token.filter((t) => JSON.parse(t.password).default).length == 0;
 };
 
-export const getIncrement = async (email: string) => {
+export const getLength = async (email: string) => {
   const tokens = await keytar.findCredentials("SPLIT-IT");
   // if the token exist for the account already or not
   const existingToken = tokens.find((t) => t.account == email);
@@ -49,5 +49,39 @@ export const getIncrement = async (email: string) => {
     return JSON.parse(existingToken.password).id;
   } else {
     return tokens.length + 1;
+  }
+};
+
+export const makeTokenDefault = async (id?: number) => {
+  const accounts = await keytar.findCredentials("SPLIT-IT");
+
+  if (id) {
+    for (const account of accounts) {
+      const credentials: tokenInfo = JSON.parse(account.password);
+
+      if (credentials.id == id) {
+        credentials.default = true;
+        await keytar.setPassword(
+          "SPLIT-IT",
+          account.account,
+          JSON.stringify(credentials)
+        );
+      } else if (credentials.default == true) {
+        credentials.default = false;
+        await keytar.setPassword(
+          "SPLIT-IT",
+          account.account,
+          JSON.stringify(credentials)
+        );
+      }
+    }
+  } else {
+    const credentials: tokenInfo = JSON.parse(accounts[0].password);
+    credentials.default = true;
+    await keytar.setPassword(
+      "SPLIT-IT",
+      accounts[0].account,
+      JSON.stringify(credentials)
+    );
   }
 };

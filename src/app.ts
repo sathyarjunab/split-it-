@@ -1,15 +1,18 @@
 import cors from "cors";
 import dotenv from "dotenv";
-import express, { Application } from "express";
+import express, { Application, NextFunction, Request, Response } from "express";
 import { createServer } from "http";
 import { WebSocketServer } from "ws";
+
+import { isAxiosError } from "axios";
+import { ZodError } from "zod";
+import authRoutes from "./routes/auth.route";
 import debug from "./routes/debug.route";
 import splitGuyRoutes from "./routes/splitguy.route";
 import userRouter from "./routes/user.route";
 import { sequelize } from "./util/data_base";
-import { closeHandler, messageHandler } from "./util/websocket_transaction";
 import { tokenDecoder } from "./util/token_decoder";
-import authRoutes from "./routes/auth.route";
+import { closeHandler, messageHandler } from "./util/websocket_transaction";
 
 dotenv.config();
 
@@ -39,6 +42,19 @@ app.use("/api/auth", authRoutes);
 app.use(tokenDecoder);
 app.use("/api/user", userRouter);
 app.use("/api/split", splitGuyRoutes);
+
+app.use((error: any, req: Request, res: Response, next: NextFunction) => {
+  if (process.env.NODE_ENV == "development") console.log(error);
+  if (isAxiosError(error)) {
+    res
+      .status(error.response?.status || 500)
+      .send(error.response?.data || "Axios error occurred");
+  } else if (error instanceof ZodError) {
+    res.status(401).send(error.message);
+  } else {
+    res.status(500).send("something went wrong");
+  }
+});
 
 const PORT = process.env.PORT || 3000;
 

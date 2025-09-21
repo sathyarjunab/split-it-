@@ -5,7 +5,7 @@ import { User } from "./../model/user";
 import {
   userLoginValidation,
   userSignupValidator,
-} from "./../util/users_split_validator";
+} from "../validator/users_split_validator";
 import { ZodError } from "zod";
 import { SequelizeScopeError } from "@sequelize/core";
 
@@ -42,7 +42,7 @@ router.post("/login", async (req, res) => {
   try {
     const userLoginBody = userLoginValidation.parse(req.body);
 
-    const userExists = await User.findOne({
+    const userExists = await User.withScope("withPassword").findOne({
       where: { email: userLoginBody.email },
     });
     if (userExists) {
@@ -56,8 +56,10 @@ router.post("/login", async (req, res) => {
               .send({ message: "please provide with the valid password" });
             return;
           }
-          const { password, ...withOutPassword } = userExists.toJSON();
-          const jwt_token = jwt.sign(withOutPassword, process.env.SECRATE_KEY!);
+          const jwt_token = jwt.sign(
+            userExists.toJSON(),
+            process.env.SECRATE_KEY!
+          );
           res.status(200).send({ jwt: jwt_token });
         }
       );

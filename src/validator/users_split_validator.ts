@@ -1,5 +1,4 @@
-import { PassThrough } from "stream";
-import zod, { email } from "zod";
+import zod from "zod";
 
 export const UsersSplitValidator = zod.object({
   userId: zod.coerce.string(),

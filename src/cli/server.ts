@@ -7,9 +7,10 @@ import keytar from "keytar";
 import api from "../../axios_config";
 import {
   defaultChecker,
-  getIncrement,
+  getLength,
+  makeTokenDefault,
   tokenSelector,
-} from "../cli_util/token_selector";
+} from "../cli_util/token.util";
 import { User } from "src/model/user";
 
 export interface tokenInfo {
@@ -62,6 +63,7 @@ export const serverCommand = (program: Command) => {
         } else {
           console.error("❌ Unexpected error:", (err as Error).message);
         }
+        process.exit(0);
       }
     });
 
@@ -94,7 +96,7 @@ export const serverCommand = (program: Command) => {
           JSON.stringify({
             token: jwt_token.data.jwt,
             default: await defaultChecker(),
-            id: await getIncrement(user.email),
+            id: await getLength(user.email),
           })
         );
         console.log("hi there", user.email);
@@ -109,6 +111,7 @@ export const serverCommand = (program: Command) => {
         } else {
           console.error("❌ Unexpected error:", (err as Error).message);
         }
+        process.exit(0);
       }
     });
 
@@ -144,13 +147,15 @@ export const serverCommand = (program: Command) => {
     .action(async (option) => {
       const userId = option.user;
       if (userId && !isNaN(Number(userId))) {
-        const email = (await tokenSelector(userId))?.account;
+        const account = await tokenSelector(userId);
 
-        if (!email) {
+        if (!account) {
           console.log("provide with the proper token id");
           process.exit(1);
         }
-        await keytar.deletePassword("SPLIT-IT", email);
+        const email = account.account;
+        if (email) await keytar.deletePassword("SPLIT-IT", email);
+        if (account.default) await makeTokenDefault();
         console.log("token removed");
         process.exit(0);
       } else {
@@ -294,9 +299,139 @@ export const serverCommand = (program: Command) => {
         process.exit(1);
       }
     });
+
   server
     .command("list_friends")
     .description("list all the friends of the user")
     .option("-u --user <id>", "user id")
-    .action(async (option) => {});
+    .option("-t --type <followers>", "followers or followers")
+    .action(async (option) => {
+      try {
+        const token = (await tokenSelector(option.user))?.token;
+        if (option.type !== "follows" && option.type !== "followers") {
+          console.log(
+            "give me the type of friends you want followers or follows by  doing this (-t followers | follows) "
+          );
+          process.exit(1);
+        }
+
+        const resp = await api.get("/api/user/list_friends", {
+          params: {
+            type: option.type,
+          },
+          headers: {
+            Authorization: token,
+          },
+        });
+
+        console.log(resp.data);
+
+        process.exit(0);
+      } catch (error: any) {
+        console.log(error.data);
+        process.exit(1);
+      }
+    });
+
+  server
+    .command("split_it")
+    .description("give the money split")
+    .option("-u --user <id>", "user id")
+    .action(async (option) => {
+      try {
+        const token = (await tokenSelector(option.user))?.token;
+
+        if (!token) {
+          console.error("❌ No token found");
+          process.exit(1);
+        }
+
+        console.log(
+          "👉 Enter split details. Type 'exit' as the username when done.\n"
+        );
+
+        // This will hold all the splits
+        const reqBody: Array<{
+          userId: string;
+          moneyBorrower: Array<{ userId: string; amount: number }>;
+        }> = [];
+
+        // loop to build request body
+        let exitLoop = false;
+        while (!exitLoop) {
+          const { lender } = await inquirer.prompt([
+            {
+              type: "input",
+              name: "lender",
+              message: "Enter lender userId (or 'exit' to finish):",
+            },
+          ]);
+
+          if (lender.toLowerCase() === "exit") {
+            exitLoop = true;
+            break;
+          }
+
+          const { numBorrowers } = await inquirer.prompt([
+            {
+              type: "number",
+              name: "numBorrowers",
+              message: "How many borrowers for this split?",
+              validate: (input) =>
+                (input ?? 0) > 0 ? true : "Must have at least one borrower",
+            },
+          ]);
+
+          const moneyBorrower: Array<{ userId: string; amount: number }> = [];
+          for (let i = 0; i < numBorrowers; i++) {
+            const borrower = await inquirer.prompt([
+              {
+                type: "input",
+                name: "borrowerId",
+                message: `Borrower #${i + 1} userId:`,
+              },
+              {
+                type: "number",
+                name: "amount",
+                message: `Amount borrower #${i + 1} owes:`,
+                validate: (val) =>
+                  (val ?? 0) > 0 ? true : "Amount must be greater than 0",
+              },
+            ]);
+            moneyBorrower.push({
+              userId: borrower.borrowerId,
+              amount: borrower.amount,
+            });
+          }
+
+          reqBody.push({ userId: lender, moneyBorrower });
+        }
+
+        if (reqBody.length === 0) {
+          console.log("❌ No splits entered. Exiting.");
+          process.exit(0);
+        }
+
+        // Send request
+        const resp = await api.post("/api/split/split_me", reqBody, {
+          headers: { Authorization: token },
+        });
+
+        console.log("✅ Final Transactions:");
+        resp.data.forEach((line: string) => console.log("   ", line));
+
+        process.exit(0);
+      } catch (err) {
+        if (isAxiosError(err)) {
+          if (err.response) {
+            console.error("❌ Axios error:", err.response.status);
+            console.error("❌ Axios error:", err.response.statusText);
+            console.error("❌ Axios error:", err.response.data);
+          }
+        } else {
+          console.error("❌ Unexpected error:", (err as Error).message);
+        }
+        process.exit(1);
+      }
+    });
 };

@@ -1,8 +1,5 @@
-import z from "zod";
-import { SplitValidator } from "./users_split_validator";
-
-export const spliter = (
-  recivers: Array<Record<string, number>>,
+export const splitter = (
+  receivers: Array<Record<string, number>>,
   payers: Array<Record<string, number>>
 ): Array<string> => {
   const resultBook: string[] = [];
@@ -13,7 +10,7 @@ export const spliter = (
   });
 
   // Sort
-  recivers.sort((a, b) => Object.values(a)[0] - Object.values(b)[0]);
+  receivers.sort((a, b) => Object.values(a)[0] - Object.values(b)[0]);
   payers.sort((a, b) => Object.values(a)[0] - Object.values(b)[0]);
 
   let j = 0;
@@ -21,13 +18,13 @@ export const spliter = (
     let payerName = Object.keys(payer)[0];
     let amountAvailable = payer[payerName];
 
-    while (amountAvailable > 0 && j < recivers.length) {
-      let recName = Object.keys(recivers[j])[0];
-      let needToPay = recivers[j][recName];
+    while (amountAvailable > 0 && j < receivers.length) {
+      let recName = Object.keys(receivers[j])[0];
+      let needToPay = receivers[j][recName];
 
       if (needToPay > amountAvailable) {
         // Payer pays part of receiver’s need
-        recivers[j][recName] -= amountAvailable;
+        receivers[j][recName] -= amountAvailable;
 
         resultBook.push(
           `${payerName} pays to ${recName} - amount ${amountAvailable}`
@@ -40,7 +37,7 @@ export const spliter = (
           `${payerName} pays to ${recName} - amount ${needToPay}`
         );
         amountAvailable -= needToPay;
-        recivers[j][recName] = 0;
+        receivers[j][recName] = 0;
         j++; // move to next receiver
       }
     }
