@@ -8,7 +8,7 @@ import { clientCommand } from "./client";
 const program = new Command();
 
 socketCommand(program);
-serverCommand(program);
 clientCommand(program);
+serverCommand(program);
 
 program.parse(process.argv);

@@ -21,7 +21,6 @@ export interface tokenInfo {
 
 export const serverCommand = (program: Command) => {
   const server = program.command("server").description("server operations");
-
   server
     .command("signup")
     .description("well it's self explanatory you signup")

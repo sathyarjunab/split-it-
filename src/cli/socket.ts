@@ -1,18 +1,18 @@
 #!/usr/bin/env node
 
 import { Command } from "commander";
-import { open } from "fs";
 import inquirer from "inquirer";
 import WebSocket from "ws";
 
-const ws = new WebSocket("ws://localhost:3000", {
-  perMessageDeflate: false,
-});
+let ws: WebSocket;
 
 export const socketCommand = (program: Command) => {
   const socket = program.command("socket").description("socket operations");
 
   socket.command("connect").action(async (option) => {
+    ws = new WebSocket(process.env.BACKEND_URL!, {
+      perMessageDeflate: false,
+    });
     // ws on error
     ws.on("error", console.error);
     // ws when it opens
@@ -33,10 +33,10 @@ export const socketCommand = (program: Command) => {
           message: "message to socket",
         },
       ]);
-      console.log(instruction.Input);
       if (instruction.Input == "exit") {
         ws.send("exit");
-        console.log("returned");
+        console.log("exited from the socket connection");
+        process.exit(0);
         return;
       }
       ws.send(instruction.Input);
